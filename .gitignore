@@ -1,0 +1,62 @@
+# Xcode
+#
+## User settings
+xcuserdata/
+
+## Xcode 8 and earlier
+*.xcscmblueprint
+*.xccheckout
+
+## Xcode Patch
+*.xcodeproj/*
+!*.xcodeproj/project.pbxproj
+!*.xcodeproj/xcshareddata/
+!*.xcodeproj/project.xcworkspace/xcshareddata/
+!*.xcworkspace/xcshareddata/
+/*.gcno
+**/xcshareddata/WorkspaceSettings.xcsettings
+
+## Compatibility with Xcode 3 and earlier
+build/
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+
+## Xcode automatically generates this directory but the contents are unnecessary
+DerivedData/
+
+## Xcode 3 and earlier
+*.moved-aside
+*.xcuserstate
+
+## Obj-C/Swift specific
+*.hmap
+
+## Swift Package Manager
+.build/
+Packages/
+Package.pins
+Package.resolved
+
+## CocoaPods
+Pods/
+
+## Carthage
+Carthage/Build/
+
+## fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output
+
+## macOS
+.DS_Store
+
+## File di lavoro/scratch da non pubblicare
+build_settings.txt
