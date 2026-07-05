@@ -73,6 +73,7 @@ private struct RootView: View {
     @EnvironmentObject private var settings: SettingsViewModel
     @EnvironmentObject private var viewModel: ChatViewModel
 
+    @Environment(\.scenePhase) private var scenePhase
     @State private var isReady = false
 
     var body: some View {
@@ -94,6 +95,11 @@ private struct RootView: View {
             // all @StateObject values before the real UI appears.
             DispatchQueue.main.async {
                 isReady = true
+            }
+        }
+        .onChange(of: scenePhase) { newPhase in
+            if newPhase == .background {
+                viewModel.cancelInFlightTask()
             }
         }
     }

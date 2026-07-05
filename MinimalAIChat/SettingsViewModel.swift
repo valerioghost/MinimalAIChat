@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import UIKit
 
 // MARK: - AppSettings Keys
 
@@ -9,6 +10,9 @@ enum SettingsKey {
     static let modelName  = "settings.modelName"
     static let apiKey     = "settings.apiKey"        // stored in Keychain
     static let userName   = "userName"               // shared with @AppStorage
+    static let temperature = "settings.temperature"
+    static let maxTokens   = "settings.maxTokens"
+    static let historyCharacterBudget = "settings.historyCharacterBudget"
 }
 
 // MARK: - Default Values
@@ -16,6 +20,8 @@ enum SettingsKey {
 enum SettingsDefault {
     static let baseURL   = "https://api.openai.com/v1"
     static let modelName = "gpt-4o-mini"
+    static let temperature: Double = 1.0
+    static let historyCharacterBudget: Int = 8000
 }
 
 // MARK: - SettingsViewModel
@@ -50,6 +56,31 @@ final class SettingsViewModel: ObservableObject {
         didSet { UserDefaults.standard.set(userName, forKey: SettingsKey.userName) }
     }
 
+    @Published var profileImage: UIImage?
+    
+    @Published var temperature: Double {
+        didSet { UserDefaults.standard.set(temperature, forKey: SettingsKey.temperature) }
+    }
+    
+    @Published var maxTokens: Int? {
+        didSet {
+            if let maxTokens = maxTokens {
+                UserDefaults.standard.set(maxTokens, forKey: SettingsKey.maxTokens)
+            } else {
+                UserDefaults.standard.removeObject(forKey: SettingsKey.maxTokens)
+            }
+        }
+    }
+    
+    @Published var historyCharacterBudget: Int {
+        didSet { UserDefaults.standard.set(historyCharacterBudget, forKey: SettingsKey.historyCharacterBudget) }
+    }
+
+    func updateProfileImage(_ image: UIImage) {
+        self.profileImage = image
+        ProfileImageManager.save(image)
+    }
+
     // MARK: - Derived helpers
 
     /// Whether the minimum required configuration is present.
@@ -68,6 +99,10 @@ final class SettingsViewModel: ObservableObject {
         self.modelName = defaults.string(forKey: SettingsKey.modelName) ?? SettingsDefault.modelName
         self.apiKey    = KeychainHelper.shared.read(forKey: SettingsKey.apiKey) ?? ""
         self.userName  = defaults.string(forKey: SettingsKey.userName)  ?? ""
+        self.profileImage = ProfileImageManager.load()
+        self.temperature = defaults.object(forKey: SettingsKey.temperature) as? Double ?? SettingsDefault.temperature
+        self.maxTokens   = defaults.object(forKey: SettingsKey.maxTokens) as? Int
+        self.historyCharacterBudget = defaults.object(forKey: SettingsKey.historyCharacterBudget) as? Int ?? SettingsDefault.historyCharacterBudget
     }
 
     // MARK: - Actions
@@ -78,5 +113,8 @@ final class SettingsViewModel: ObservableObject {
         modelName = SettingsDefault.modelName
         apiKey    = ""
         KeychainHelper.shared.delete(forKey: SettingsKey.apiKey)
+        temperature = SettingsDefault.temperature
+        maxTokens = nil
+        historyCharacterBudget = SettingsDefault.historyCharacterBudget
     }
 }

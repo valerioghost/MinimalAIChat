@@ -13,10 +13,22 @@ struct ChatCompletionRequest: Encodable {
     let model: String
     let messages: [APIMessage]
     let stream: Bool
+    let temperature: Double
+    let maxTokens: Int?
 
-    // Explicit CodingKeys so `stream` is always serialised even if false.
     enum CodingKeys: String, CodingKey {
-        case model, messages, stream
+        case model, messages, stream, temperature
+        case maxTokens = "max_tokens"
+    }
+    
+    // Explicit encode(to:) to ensure max_tokens is omitted entirely when nil
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(model, forKey: .model)
+        try container.encode(messages, forKey: .messages)
+        try container.encode(stream, forKey: .stream)
+        try container.encode(temperature, forKey: .temperature)
+        try container.encodeIfPresent(maxTokens, forKey: .maxTokens)
     }
 }
 
@@ -47,6 +59,19 @@ struct ChatCompletionResponse: Decodable {
             case completionTokens = "completion_tokens"
             case totalTokens      = "total_tokens"
         }
+    }
+}
+
+/// Top-level response from `POST /chat/completions` (streaming).
+struct ChatCompletionStreamResponse: Decodable {
+    let choices: [Choice]
+
+    struct Choice: Decodable {
+        let delta: Delta
+    }
+
+    struct Delta: Decodable {
+        let content: String?
     }
 }
 
@@ -138,7 +163,7 @@ final class ChatAPIService {
         // ── 2. Build system prompt ─────────────────────────────────────────
         // Read the username directly from UserDefaults at call time so the
         // value is always fresh, regardless of SettingsViewModel sync state.
-        let defaultPrompt = "You are a helpful AI assistant. The user's name is {name}. Address the user by their name when appropriate, and be concise, friendly, and accurate."
+        let defaultPrompt = ChatConstants.defaultSystemPrompt
 
         var basePrompt = UserDefaults.standard.string(forKey: "customSystemPrompt") ?? defaultPrompt
         if basePrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -161,17 +186,18 @@ final class ChatAPIService {
         let temporalContent = "You are a minimalist AI assistant. Today's date is \(todayString). Your temporal context must strictly be based on this current date."
 
         // ── 3. Build request body ──────────────────────────────────────────
-        // System messages are always first — personality, then temporal context.
-        let personalityMessage = APIMessage(role: "system", content: personalityContent)
-        let temporalMessage    = APIMessage(role: "system", content: temporalContent)
+        let combinedSystemContent = personalityContent + "\n\n" + temporalContent
+        let systemMessage = APIMessage(role: "system", content: combinedSystemContent)
 
         let userMessages  = messages.map { APIMessage(role: $0.role.rawValue, content: $0.content) }
-        let apiMessages   = [personalityMessage, temporalMessage] + userMessages
+        let apiMessages   = [systemMessage] + userMessages
 
         let body = ChatCompletionRequest(
             model: model,
             messages: apiMessages,
-            stream: false
+            stream: false,
+            temperature: settings.temperature,
+            maxTokens: settings.maxTokens
         )
 
         let encoder = JSONEncoder()
@@ -227,6 +253,127 @@ final class ChatAPIService {
         } catch let decodingError as DecodingError {
             let raw = String(data: data, encoding: .utf8) ?? "<binary>"
             throw APIError.decodingFailed(underlying: "\(decodingError) | Raw body: \(raw.prefix(300))")
+        }
+    }
+
+    /// Sends the full conversation history and returns an async stream of assistant reply chunks.
+    ///
+    /// - Parameters:
+    ///   - messages: All `ChatMessage` values in the active session.
+    ///   - settings: The live `SettingsViewModel` (Base URL, model, API key).
+    /// - Returns: An `AsyncThrowingStream` yielding text deltas.
+    func streamChatCompletion(
+        messages: [ChatMessage],
+        settings: SettingsViewModel
+    ) -> AsyncThrowingStream<String, Error> {
+        
+        return AsyncThrowingStream { continuation in
+            let innerTask = Task {
+                do {
+                    // ── 1. Validate inputs ─────────────────────────────────────────────
+                    let trimmedBase = settings.baseURL
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                        .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+                    guard !trimmedBase.isEmpty, let url = URL(string: trimmedBase + "/chat/completions") else {
+                        throw APIError.invalidURL(settings.baseURL)
+                    }
+
+                    let model = settings.modelName.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !model.isEmpty else { throw APIError.emptyModel }
+
+                    // ── 2. Build system prompt ─────────────────────────────────────────
+                    let defaultPrompt = ChatConstants.defaultSystemPrompt
+
+                    var basePrompt = UserDefaults.standard.string(forKey: "customSystemPrompt") ?? defaultPrompt
+                    if basePrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        basePrompt = defaultPrompt
+                    }
+
+                    let savedName = UserDefaults.standard.string(forKey: "userName") ?? "User"
+                    let personalityContent = basePrompt.replacingOccurrences(of: "{name}", with: savedName)
+
+                    let dateFormatter = DateFormatter()
+                    dateFormatter.dateStyle = .long
+                    let todayString = dateFormatter.string(from: Date())
+                    let temporalContent = "You are a minimalist AI assistant. Today's date is \(todayString). Your temporal context must strictly be based on this current date."
+
+                    // ── 3. Build request body ──────────────────────────────────────────
+                    let combinedSystemContent = personalityContent + "\n\n" + temporalContent
+                    let systemMessage = APIMessage(role: "system", content: combinedSystemContent)
+
+                    let userMessages  = messages.map { APIMessage(role: $0.role.rawValue, content: $0.content) }
+                    let apiMessages   = [systemMessage] + userMessages
+
+                    let body = ChatCompletionRequest(
+                        model: model,
+                        messages: apiMessages,
+                        stream: true,
+                        temperature: settings.temperature,
+                        maxTokens: settings.maxTokens
+                    )
+
+                    let encoder = JSONEncoder()
+                    let bodyData = try encoder.encode(body)
+
+                    // ── 4. Assemble URLRequest ─────────────────────────────────────────
+                    var request = URLRequest(url: url)
+                    request.httpMethod  = "POST"
+                    request.httpBody    = bodyData
+                    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                    request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+                    let apiKey = settings.apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !apiKey.isEmpty {
+                        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+                    }
+
+                    // ── 5. Fire request ────────────────────────────────────────────────
+                    let (result, response) = try await session.bytes(for: request)
+
+                    // ── 6. Validate HTTP status ────────────────────────────────────────
+                    if let http = response as? HTTPURLResponse,
+                       !(200..<300).contains(http.statusCode) {
+                        var errorData = Data()
+                        for try await byte in result {
+                            errorData.append(byte)
+                        }
+                        let serverMsg = self.extractServerError(from: errorData)
+                        throw APIError.httpError(statusCode: http.statusCode, serverMessage: serverMsg)
+                    }
+
+                    // ── 7. Read Stream ─────────────────────────────────────────────────
+                    let decoder = JSONDecoder()
+                    for try await line in result.lines {
+                        if Task.isCancelled {
+                            throw APIError.cancelled
+                        }
+                        guard line.hasPrefix("data: ") else { continue }
+                        let payload = line.dropFirst(6)
+                        if payload == "[DONE]" {
+                            break
+                        }
+                        if let data = payload.data(using: .utf8) {
+                            if let chunk = try? decoder.decode(ChatCompletionStreamResponse.self, from: data),
+                               let text = chunk.choices.first?.delta.content {
+                                continuation.yield(text)
+                            }
+                        }
+                    }
+                    continuation.finish()
+                } catch let urlError as URLError where urlError.code == .timedOut {
+                    continuation.finish(throwing: APIError.timedOut)
+                } catch let urlError as URLError where urlError.code == .cancelled {
+                    continuation.finish(throwing: APIError.cancelled)
+                } catch let apiError as APIError {
+                    continuation.finish(throwing: apiError)
+                } catch {
+                    continuation.finish(throwing: APIError.networkFailure(underlying: error))
+                }
+            }
+            
+            continuation.onTermination = { @Sendable _ in
+                innerTask.cancel()
+            }
         }
     }
 

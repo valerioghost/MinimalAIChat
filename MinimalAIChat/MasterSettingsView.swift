@@ -43,6 +43,17 @@ struct MasterSettingsView: View {
                         }
                         .padding(.vertical, 4)
                     }
+                    
+                    NavigationLink(destination: AboutView()) {
+                        HStack(spacing: 12) {
+                            Image(systemName: "info.circle")
+                                .font(.system(size: 20))
+                                .foregroundColor(.accentColor)
+                            Text("About")
+                                .font(.system(size: 16))
+                        }
+                        .padding(.vertical, 4)
+                    }
                 } header: {
                     Text("Settings")
                 }
@@ -68,9 +79,52 @@ struct MasterSettingsView: View {
 struct ProfileSettingsView: View {
 
     @AppStorage("userName") private var userName: String = ""
+    @EnvironmentObject private var settings: SettingsViewModel
+    @State private var showingImagePicker = false
 
     var body: some View {
         Form {
+            Section {
+                HStack {
+                    Spacer()
+                    Button {
+                        showingImagePicker = true
+                    } label: {
+                        ZStack {
+                            Circle()
+                                .fill(Color.accentColor.opacity(0.15))
+                                .frame(width: 80, height: 80)
+                            
+                            if let img = settings.profileImage {
+                                Image(uiImage: img)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 80, height: 80)
+                                    .clipShape(Circle())
+                            } else if userName.isEmpty {
+                                Image(systemName: "person")
+                                    .font(.system(size: 36, weight: .medium))
+                                    .foregroundColor(.accentColor)
+                            } else {
+                                Text(String(userName.prefix(1)).uppercased())
+                                    .font(.system(size: 36, weight: .bold))
+                                    .foregroundColor(.accentColor)
+                            }
+                            
+                            Circle()
+                                .stroke(Color.accentColor.opacity(0.3), lineWidth: 1)
+                                .frame(width: 80, height: 80)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    Spacer()
+                }
+                .listRowBackground(Color.clear)
+                .padding(.vertical, 10)
+            } header: {
+                Text("Your Profile Picture")
+            }
+
             Section {
                 TextField("e.g. Valerio", text: $userName)
                     .font(.system(size: 16))
@@ -83,6 +137,13 @@ struct ProfileSettingsView: View {
         }
         .navigationTitle("Edit Profile")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showingImagePicker) {
+            SystemImagePicker(selectedImage: Binding(get: { settings.profileImage }, set: { newImg in
+                if let newImg = newImg {
+                    settings.updateProfileImage(newImg)
+                }
+            }))
+        }
     }
 }
 
@@ -91,8 +152,8 @@ struct ProfileSettingsView: View {
 /// Sub-view for editing the AI system prompt.
 struct PromptSettingsView: View {
 
-    let defaultPrompt = "You are a helpful AI assistant. The user's name is {name}. Address the user by their name when appropriate, and be concise, friendly, and accurate."
     @AppStorage("customSystemPrompt") private var customSystemPrompt: String = ""
+    @State private var showResetAlert: Bool = false
 
     var body: some View {
         Form {
@@ -101,6 +162,17 @@ struct PromptSettingsView: View {
                     .frame(minHeight: 150)
                     .font(.system(size: 16))
                     .padding(.vertical, 4)
+                
+                Button(action: {
+                    showResetAlert = true
+                }) {
+                    HStack {
+                        Image(systemName: "arrow.counterclockwise")
+                        Text("Reset to Default")
+                    }
+                    .font(.system(size: 15))
+                    .foregroundColor(.red)
+                }
             } header: {
                 Text("System Prompt")
             } footer: {
@@ -109,8 +181,20 @@ struct PromptSettingsView: View {
         }
         .onAppear {
             if customSystemPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                customSystemPrompt = defaultPrompt
+                customSystemPrompt = ChatConstants.defaultSystemPrompt
             }
+        }
+        .alert(isPresented: $showResetAlert) {
+            Alert(
+                title: Text("Reset system prompt?"),
+                message: Text("Your custom prompt will be replaced with the default."),
+                primaryButton: .destructive(Text("Reset")) {
+                    withAnimation {
+                        customSystemPrompt = ChatConstants.defaultSystemPrompt
+                    }
+                },
+                secondaryButton: .cancel()
+            )
         }
         .navigationTitle("AI Personality")
         .navigationBarTitleDisplayMode(.inline)
@@ -123,5 +207,66 @@ struct MasterSettingsView_Previews: PreviewProvider {
     static var previews: some View {
         MasterSettingsView()
             .environmentObject(SettingsViewModel())
+    }
+}
+
+// MARK: - AboutView
+
+/// Simple about screen with links and version info.
+struct AboutView: View {
+    var body: some View {
+        Form {
+            Section {
+                if let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
+                    HStack {
+                        Image(systemName: "tag")
+                            .foregroundColor(.secondary)
+                            .frame(width: 24)
+                        Text("Version")
+                        Spacer()
+                        Text(version)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            } header: {
+                Text("App Info")
+            }
+
+            Section {
+                Button(action: {
+                    if let url = URL(string: "https://github.com/valerioghost/MinimalAIChat") {
+                        UIApplication.shared.open(url)
+                    }
+                }) {
+                    HStack {
+                        Image(systemName: "chevron.left.forwardslash.chevron.right")
+                            .foregroundColor(.accentColor)
+                            .frame(width: 24)
+                        Text("GitHub Repository")
+                            .foregroundColor(.primary)
+                    }
+                }
+
+                Button(action: {
+                    if let url = URL(string: "https://discord.gg/ryy2h6j5aq") {
+                        UIApplication.shared.open(url)
+                    }
+                }) {
+                    HStack {
+                        Image(systemName: "bubble.left.and.bubble.right")
+                            .foregroundColor(.accentColor)
+                            .frame(width: 24)
+                        Text("Discord Server")
+                            .foregroundColor(.primary)
+                    }
+                }
+            } header: {
+                Text("Links")
+            } footer: {
+                Text("Join the Discord server for support & feedback.")
+            }
+        }
+        .navigationTitle("About")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }

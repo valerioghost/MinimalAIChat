@@ -51,13 +51,19 @@ struct MessageBubbleView: View {
             avatarView
 
             VStack(alignment: .leading, spacing: 6) {
-                markdownText(from: message.content)
-                    .font(.system(size: 16))
-                    .lineSpacing(4)
-                    .multilineTextAlignment(.leading)
-                    .foregroundColor(.primary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .fixedSize(horizontal: false, vertical: true)
+                if message.content.isEmpty {
+                    TypingDotsView()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 2)
+                } else {
+                    markdownText(from: message.content)
+                        .font(.system(size: 16))
+                        .lineSpacing(4)
+                        .multilineTextAlignment(.leading)
+                        .foregroundColor(.primary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
                 Text(formattedTime(message.timestamp))
                     .font(.system(size: 11))
@@ -176,6 +182,32 @@ struct BubbleShape: Shape {
 
         path.closeSubpath()
         return path
+    }
+}
+
+// MARK: - Typing Dots View
+
+struct TypingDotsView: View {
+    @State private var phase: Int = 0
+    let timer = Timer.publish(every: 0.4, on: .main, in: .common).autoconnect()
+
+    var body: some View {
+        HStack(spacing: 5) {
+            ForEach(0..<3, id: \.self) { i in
+                Circle()
+                    .fill(Color.secondary.opacity(0.6))
+                    .frame(width: 8, height: 8)
+                    .scaleEffect(phase == i ? 1.3 : 0.9)
+                    .animation(
+                        .easeInOut(duration: 0.35).repeatForever(autoreverses: true).delay(Double(i) * 0.15),
+                        value: phase
+                    )
+            }
+        }
+        .onReceive(timer) { _ in
+            phase = (phase + 1) % 3
+        }
+        .frame(height: 20)
     }
 }
 

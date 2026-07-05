@@ -22,6 +22,7 @@ struct SettingsView: View {
                 modelSection
                 apiKeySection
                 statusSection
+                advancedSection
                 dangerSection
             }
             .navigationTitle("API & Connection")
@@ -164,6 +165,25 @@ struct SettingsView: View {
         }
     }
 
+    /// Advanced settings link
+    private var advancedSection: some View {
+        Section {
+            NavigationLink(destination: AdvancedSettingsView()) {
+                HStack(spacing: 12) {
+                    Image(systemName: "slider.horizontal.3")
+                        .font(.system(size: 18))
+                        .foregroundColor(.accentColor)
+                        .frame(width: 24)
+                    Text("Advanced Options")
+                        .font(.system(size: 16))
+                }
+                .padding(.vertical, 4)
+            }
+        } header: {
+            sectionHeader(icon: "gearshape.2", title: "Advanced")
+        }
+    }
+
     /// Danger zone
     private var dangerSection: some View {
         Section {
@@ -234,3 +254,117 @@ struct SettingsView_Previews: PreviewProvider {
             .environmentObject(SettingsViewModel())
     }
 }
+
+// MARK: - AdvancedSettingsView
+
+struct AdvancedSettingsView: View {
+    @EnvironmentObject private var settings: SettingsViewModel
+    @State private var maxTokensString: String = ""
+    @State private var showResetAlert: Bool = false
+
+    var body: some View {
+        Form {
+            Section {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text("Temperature")
+                        Spacer()
+                        Text(String(format: "%.1f", settings.temperature))
+                            .foregroundColor(.secondary)
+                    }
+                    Slider(value: $settings.temperature, in: 0...2, step: 0.1)
+                    Text("Lower is more focused and predictable, higher is more creative and random.")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.vertical, 4)
+            } header: {
+                Text("Creativity")
+            }
+
+            Section {
+                VStack(alignment: .leading, spacing: 6) {
+                    TextField("Unlimited", text: $maxTokensString)
+                        .keyboardType(.numberPad)
+                        .onChange(of: maxTokensString) { newValue in
+                            let filtered = newValue.filter { $0.isNumber }
+                            if filtered != newValue {
+                                maxTokensString = filtered
+                            }
+                            if filtered.isEmpty {
+                                settings.maxTokens = nil
+                            } else if let intVal = Int(filtered) {
+                                settings.maxTokens = intVal
+                            }
+                        }
+                    Text("Limits how long a single reply can be. Leave empty for no limit.")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.vertical, 4)
+            } header: {
+                Text("Max Tokens")
+            }
+            .onAppear {
+                if let mt = settings.maxTokens {
+                    maxTokensString = String(mt)
+                } else {
+                    maxTokensString = ""
+                }
+            }
+
+            Section {
+                VStack(alignment: .leading, spacing: 6) {
+                    Stepper(value: $settings.historyCharacterBudget, in: 1000...50000, step: 1000) {
+                        HStack {
+                            Text("Budget:")
+                            Spacer()
+                            Text("\(settings.historyCharacterBudget) chars")
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    Text("How much of the conversation history is sent with each message. Higher uses more data/tokens per request but remembers more context.")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.vertical, 4)
+            } header: {
+                Text("Conversation Memory")
+            }
+
+            Section {
+                Button(action: {
+                    showResetAlert = true
+                }) {
+                    HStack {
+                        Image(systemName: "arrow.counterclockwise")
+                        Text("Reset to Defaults")
+                    }
+                    .font(.system(size: 15))
+                    .foregroundColor(.red)
+                }
+            }
+        }
+        .navigationTitle("Advanced")
+        .navigationBarTitleDisplayMode(.inline)
+        .alert(isPresented: $showResetAlert) {
+            Alert(
+                title: Text("Reset advanced settings?"),
+                message: Text("Temperature, Max Tokens, and Conversation Memory will be reset to their defaults."),
+                primaryButton: .destructive(Text("Reset")) {
+                    withAnimation {
+                        settings.temperature = SettingsDefault.temperature
+                        settings.maxTokens = nil
+                        maxTokensString = ""
+                        settings.historyCharacterBudget = SettingsDefault.historyCharacterBudget
+                    }
+                },
+                secondaryButton: .cancel()
+            )
+        }
+    }
+}
+

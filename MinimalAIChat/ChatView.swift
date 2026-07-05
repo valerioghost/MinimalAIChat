@@ -29,10 +29,23 @@ struct ChatView: View {
                                 .id(message.id)
                         }
 
-                        // Typing indicator
-                        if viewModel.isTyping {
-                            TypingIndicatorView()
-                                .id("typing")
+                        if viewModel.canRetry {
+                            Button(action: {
+                                viewModel.retryLastReply()
+                            }) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "arrow.clockwise")
+                                    Text("Retry")
+                                }
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundColor(.secondary)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 8)
+                                .background(Capsule().fill(Color(.secondarySystemBackground)))
+                                .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
+                            }
+                            .padding(.top, 4)
+                            .id("retryButton")
                         }
 
                         // Stable, non-zero anchor at the very bottom.
@@ -202,72 +215,6 @@ struct ChatView: View {
 
         return Publishers.Merge(willShow, willHide)
             .eraseToAnyPublisher()
-    }
-}
-
-// MARK: - Typing Indicator
-
-struct TypingIndicatorView: View {
-
-    @State private var phase: Int = 0
-
-    let timer = Timer.publish(every: 0.4, on: .main, in: .common).autoconnect()
-
-    var body: some View {
-        HStack(alignment: .bottom, spacing: 4) {
-            // Avatar
-            assistantAvatar
-
-            // Bubble
-            HStack(spacing: 5) {
-                ForEach(0..<3, id: \.self) { i in
-                    Circle()
-                        .fill(Color.secondary.opacity(0.6))
-                        .frame(width: 8, height: 8)
-                        .scaleEffect(phase == i ? 1.3 : 0.9)
-                        .animation(
-                            .easeInOut(duration: 0.35).repeatForever(autoreverses: true).delay(Double(i) * 0.15),
-                            value: phase
-                        )
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
-            .background(Color(.secondarySystemBackground))
-            .clipShape(TypingBubbleShape())
-
-            Spacer()
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 4)
-        .onReceive(timer) { _ in
-            phase = (phase + 1) % 3
-        }
-    }
-
-    private var assistantAvatar: some View {
-        ZStack {
-            Circle()
-                .fill(LinearGradient(
-                    colors: [Color.accentColor, Color.accentColor.opacity(0.6)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                ))
-                .frame(width: 30, height: 30)
-            Image(systemName: "sparkles")
-                .font(.system(size: 14, weight: .medium))
-                .foregroundColor(.white)
-        }
-    }
-}
-
-/// Rounded bubble shape with a small tail on the leading side.
-struct TypingBubbleShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let r: CGFloat = 18
-        var path = Path()
-        path.addRoundedRect(in: rect, cornerSize: CGSize(width: r, height: r))
-        return path
     }
 }
 

@@ -172,18 +172,25 @@ struct SideMenuView: View {
             isShowingMasterSettings = true
         } label: {
             HStack(spacing: 14) {
-                // Avatar: first character of the user's name, or a person icon
+                // Avatar: profile image, or first character of the user's name, or a person icon
                 ZStack {
                     Circle()
                         .fill(Color.accentColor.opacity(0.15))
-                        .frame(width: 34, height: 34)
-                    if userName.isEmpty {
+                        .frame(width: 48, height: 48)
+                    
+                    if let img = settings.profileImage {
+                        Image(uiImage: img)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 48, height: 48)
+                            .clipShape(Circle())
+                    } else if userName.isEmpty {
                         Image(systemName: "person")
-                            .font(.system(size: 15, weight: .medium))
+                            .font(.system(size: 21, weight: .medium))
                             .foregroundColor(.accentColor)
                     } else {
                         Text(String(userName.prefix(1)).uppercased())
-                            .font(.system(size: 15, weight: .bold))
+                            .font(.system(size: 21, weight: .bold))
                             .foregroundColor(.accentColor)
                     }
                 }

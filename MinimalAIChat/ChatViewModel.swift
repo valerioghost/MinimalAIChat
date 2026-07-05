@@ -18,6 +18,7 @@ final class ChatViewModel: ObservableObject {
     @Published var activeSessionID: UUID
     @Published var inputText: String = ""
     @Published var isTyping: Bool = false
+    @Published private(set) var isStreamingActive: Bool = false
     /// Non-nil whenever the last API call failed. Cleared on the next successful send.
     @Published var lastError: APIError? = nil
 
@@ -28,6 +29,9 @@ final class ChatViewModel: ObservableObject {
 
     /// UserDefaults key under which the full session list is stored as JSON.
     private static let sessionsKey = "persistedChatSessions"
+    
+    /// Maximum character count to send to the API per request, preventing unbounded growth.
+    private var historyCharacterBudget: Int { settings.historyCharacterBudget }
 
     /// Handle to the in-flight network task so it can be cancelled on session switch.
     private var currentTask: Task<Void, Never>?
@@ -45,6 +49,14 @@ final class ChatViewModel: ObservableObject {
             // so we don't accumulate an endless list of unused chats.
             loadedSessions = saved.filter { session in
                 !(session.title == "New Chat" && session.messages.count <= 1)
+            }
+            
+            let initialCount = loadedSessions.reduce(0) { $0 + $1.messages.count }
+            loadedSessions = Self.purgeStuckPlaceholders(in: loadedSessions)
+            if loadedSessions.reduce(0, { $0 + $1.messages.count }) < initialCount {
+                if let data = try? JSONEncoder().encode(loadedSessions) {
+                    UserDefaults.standard.set(data, forKey: Self.sessionsKey)
+                }
             }
         }
 
@@ -84,9 +96,16 @@ final class ChatViewModel: ObservableObject {
         activeSession?.messages ?? []
     }
 
+    var canRetry: Bool {
+        !isTyping && !isStreamingActive && (
+            activeMessages.last?.role == .user ||
+            activeMessages.last?.isError == true ||
+            (activeMessages.last?.role == .assistant && activeMessages.last?.isComplete == false)
+        )
+    }
+
     // MARK: - Actions
 
-    /// Validates input, appends the user message, and fires the network request.
     func sendMessage() {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, !isTyping else { return }
@@ -95,6 +114,26 @@ final class ChatViewModel: ObservableObject {
         appendMessage(ChatMessage(role: .user, content: text))
 
         // Cancel any stale in-flight request before starting a new one
+        currentTask?.cancel()
+        currentTask = Task {
+            await fetchAssistantReply()
+        }
+    }
+
+    /// Retries the last user request (or re-attempts after an error or interrupted stream).
+    func retryLastReply() {
+        guard canRetry else { return }
+
+        if let lastMsg = activeMessages.last, lastMsg.role == .assistant {
+            // Remove both error bubbles AND incomplete partial replies before retrying
+            if lastMsg.isError || !lastMsg.isComplete {
+                if let sessionIdx = sessions.firstIndex(where: { $0.id == activeSessionID }) {
+                    sessions[sessionIdx].messages.removeAll(where: { $0.id == lastMsg.id })
+                    persistSessions()
+                }
+            }
+        }
+
         currentTask?.cancel()
         currentTask = Task {
             await fetchAssistantReply()
@@ -142,6 +181,10 @@ final class ChatViewModel: ObservableObject {
         persistSessions()
     }
 
+    /// Cancels any in-flight API request. Call this when backgrounding the app.
+    func cancelInFlightTask() {
+        currentTask?.cancel()
+    }
 
     /// Dismisses the current error alert (called from the view's alert handler).
     func dismissError() {
@@ -152,41 +195,149 @@ final class ChatViewModel: ObservableObject {
 
     private func fetchAssistantReply() async {
         isTyping = true
+        isStreamingActive = true
 
         // Snapshot messages so switching session mid-flight doesn't corrupt state
-        let messagesToSend = activeMessages
+        let messagesToSend = trimmedHistory(from: activeMessages)
         let sessionIDAtDispatch = activeSessionID
 
+        // Placeholder starts as incomplete; only the clean-finish path marks it done
+        let initialMessage = ChatMessage(role: .assistant, content: "", isComplete: false)
+        appendMessage(initialMessage, toSession: sessionIDAtDispatch)
+        let messageID = initialMessage.id
+
+        let stream = apiService.streamChatCompletion(
+            messages: messagesToSend,
+            settings: settings
+        )
+
+        var firstChunkReceived = false
+        var chunkCount = 0
+
         do {
-            let reply = try await apiService.sendChatCompletion(
-                messages: messagesToSend,
-                settings: settings
-            )
+            for try await chunk in stream {
+                // Check cancellation *before* modifying state
+                guard !Task.isCancelled else {
+                    cleanupPartialMessage(messageID: messageID, inSession: sessionIDAtDispatch, wasCancelled: true)
+                    isStreamingActive = false
+                    return
+                }
+                
+                // If the user just switched sessions, stop streaming
+                guard activeSessionID == sessionIDAtDispatch else {
+                    cleanupPartialMessage(messageID: messageID, inSession: sessionIDAtDispatch, wasCancelled: true)
+                    isStreamingActive = false
+                    return
+                }
 
-            // Only apply the reply if the user hasn't switched sessions
-            guard !Task.isCancelled, activeSessionID == sessionIDAtDispatch else { return }
+                if !firstChunkReceived {
+                    isTyping = false
+                    firstChunkReceived = true
+                }
 
-            isTyping = false
-            appendMessage(ChatMessage(role: .assistant, content: reply), toSession: sessionIDAtDispatch)
+                if let sessionIdx = sessions.firstIndex(where: { $0.id == sessionIDAtDispatch }),
+                   let msgIdx = sessions[sessionIdx].messages.firstIndex(where: { $0.id == messageID }) {
+                    
+                    sessions[sessionIdx].messages[msgIdx].content += chunk
+                    sessions[sessionIdx].lastUpdated = Date()
+                    
+                    chunkCount += 1
+                    // Throttle persistence to avoid excessive disk I/O on every token
+                    if chunkCount % 10 == 0 {
+                        persistSessions()
+                    }
+                }
+            }
+            
+            if !firstChunkReceived {
+                isTyping = false
+            }
+
+            // Mark the message complete BEFORE cleanup, so persisted state is correct
+            if let sessionIdx = sessions.firstIndex(where: { $0.id == sessionIDAtDispatch }),
+               let msgIdx = sessions[sessionIdx].messages.firstIndex(where: { $0.id == messageID }) {
+                sessions[sessionIdx].messages[msgIdx].isComplete = true
+            }
+
+            // Final cleanup for the clean-finish case
+            cleanupPartialMessage(messageID: messageID, inSession: sessionIDAtDispatch, wasCancelled: false)
+            isStreamingActive = false
 
         } catch APIError.cancelled {
             // Silently swallow cancellations — the user switched sessions or view
             isTyping = false
+            cleanupPartialMessage(messageID: messageID, inSession: sessionIDAtDispatch, wasCancelled: true)
+            isStreamingActive = false
 
         } catch {
-            guard !Task.isCancelled, activeSessionID == sessionIDAtDispatch else { return }
+            guard !Task.isCancelled else {
+                cleanupPartialMessage(messageID: messageID, inSession: sessionIDAtDispatch, wasCancelled: true)
+                isStreamingActive = false
+                return 
+            }
+            guard activeSessionID == sessionIDAtDispatch else {
+                cleanupPartialMessage(messageID: messageID, inSession: sessionIDAtDispatch, wasCancelled: true)
+                isStreamingActive = false
+                return 
+            }
+            
             isTyping = false
+            cleanupPartialMessage(messageID: messageID, inSession: sessionIDAtDispatch, wasCancelled: false)
 
             // Surface as typed error for the alert
             lastError = error as? APIError ?? APIError.networkFailure(underlying: error)
 
             // Also append an inline error bubble for in-context feedback
             let errorText = buildErrorMessage(for: error)
-            appendMessage(ChatMessage(role: .assistant, content: errorText), toSession: sessionIDAtDispatch)
+            appendMessage(ChatMessage(role: .assistant, content: errorText, isError: true), toSession: sessionIDAtDispatch)
+            isStreamingActive = false
         }
     }
 
+    private func cleanupPartialMessage(messageID: UUID, inSession sessionID: UUID, wasCancelled: Bool) {
+        guard let sessionIdx = sessions.firstIndex(where: { $0.id == sessionID }),
+              let msgIdx = sessions[sessionIdx].messages.firstIndex(where: { $0.id == messageID }) else {
+            return
+        }
+
+        let content = sessions[sessionIdx].messages[msgIdx].content
+
+        if content.isEmpty {
+            // Remove the empty placeholder bubble completely
+            sessions[sessionIdx].messages.remove(at: msgIdx)
+        } else if wasCancelled {
+            // Keep the partial text but mark it as interrupted
+            sessions[sessionIdx].messages[msgIdx].content += " [interrupted]"
+        }
+
+        sessions[sessionIdx].lastUpdated = Date()
+        persistSessions()
+    }
+
     // MARK: - Private Helpers
+
+    /// Returns a subset of recent messages whose total character count fits within the budget.
+    /// Guarantees that at least the single most recent message is included, regardless of length.
+    private func trimmedHistory(from messages: [ChatMessage]) -> [ChatMessage] {
+        guard !messages.isEmpty else { return [] }
+        
+        var result: [ChatMessage] = []
+        var currentLength = 0
+        
+        for message in messages.reversed() {
+            let length = message.content.count
+            
+            // Stop if adding this message exceeds budget AND we already have at least one message
+            if currentLength + length > historyCharacterBudget && !result.isEmpty {
+                break
+            }
+            
+            result.insert(message, at: 0)
+            currentLength += length
+        }
+        
+        return result
+    }
 
     private func appendMessage(_ message: ChatMessage, toSession sessionID: UUID? = nil) {
         let targetID = sessionID ?? activeSessionID
@@ -225,7 +376,13 @@ final class ChatViewModel: ObservableObject {
             !saved.isEmpty
         else { return }
 
-        sessions = saved
+        let initialCount = saved.reduce(0) { $0 + $1.messages.count }
+        let purged = Self.purgeStuckPlaceholders(in: saved)
+        sessions = purged
+
+        if purged.reduce(0, { $0 + $1.messages.count }) < initialCount {
+            persistSessions()
+        }
 
         // Keep the active session pointer valid; fall back to the most recent one.
         if !sessions.contains(where: { $0.id == activeSessionID }) {
@@ -240,5 +397,14 @@ final class ChatViewModel: ObservableObject {
             return "⚠️ \(description)"
         }
         return "⚠️ An unexpected error occurred: \(error.localizedDescription)"
+    }
+
+    /// Removes any empty assistant messages that were orphaned by a hard app termination mid-stream.
+    private static func purgeStuckPlaceholders(in sessions: [ChatSession]) -> [ChatSession] {
+        return sessions.map { session in
+            var updated = session
+            updated.messages.removeAll { $0.role == .assistant && $0.content.isEmpty }
+            return updated
+        }
     }
 }
