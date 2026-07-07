@@ -66,6 +66,12 @@ An excellent choice if you want access to a variety of open-source and proprieta
 
 > ⚠️ **Security Warning:** Never share your API key publicly or commit it to a public repository. MinimalAIChat stores your key securely inside the iOS Keychain; it is never saved in plaintext and is only used for direct, local requests to your chosen provider.
 
+## Community & Support
+
+Need help setting up your API keys, want to report a bug, or have a feature request? Join our official community!
+
+💬 **[Join the MinimalAIChat Discord Server](https://discord.gg/ryy2h6j5aq)**
+
 ## Technical Overview
 
 * **Framework:** Built entirely with SwiftUI.
