@@ -2,10 +2,94 @@ import Foundation
 
 // MARK: - OpenAI-Compatible Request / Response Models
 
+/// Represents the `content` field of an API message. Plain-text messages
+/// (system prompts, tool results, synthesis prompts, echoing an assistant
+/// tool-call message back) encode as a bare JSON string, identical to
+/// pre-vision behavior. Messages that include one or more images encode as
+/// an array of typed parts, per the OpenAI-compatible vision format:
+/// [{"type":"text",...}, {"type":"image_url","image_url":{"url":"..."}}]
+enum APIContent: Codable {
+    case text(String)
+    case parts([Part])
+
+    enum Part: Codable {
+        case text(String)
+        case imageURL(String)
+
+        private enum CodingKeys: String, CodingKey {
+            case type, text
+            case imageURL = "image_url"
+        }
+        private struct ImageURLBody: Codable { let url: String }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            switch self {
+            case .text(let t):
+                try container.encode("text", forKey: .type)
+                try container.encode(t, forKey: .text)
+            case .imageURL(let url):
+                try container.encode("image_url", forKey: .type)
+                try container.encode(ImageURLBody(url: url), forKey: .imageURL)
+            }
+        }
+
+        init(from decoder: Decoder) throws {
+            // Decoding is only a defensive fallback (some provider echoing
+            // structured content back). We only ever encode this type when
+            // building outgoing requests.
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            let type = try container.decodeIfPresent(String.self, forKey: .type) ?? "text"
+            if type == "image_url", let body = try? container.decode(ImageURLBody.self, forKey: .imageURL) {
+                self = .imageURL(body.url)
+            } else {
+                let text = try container.decodeIfPresent(String.self, forKey: .text) ?? ""
+                self = .text(text)
+            }
+        }
+    }
+
+    /// Extracts the plain text portion, if any. API responses are always
+    /// `.text` in practice; `.parts` is handled defensively by concatenating
+    /// any text parts and ignoring images.
+    var plainText: String? {
+        switch self {
+        case .text(let t):
+            return t
+        case .parts(let parts):
+            let combined = parts.compactMap { part -> String? in
+                if case .text(let t) = part { return t }
+                return nil
+            }.joined()
+            return combined.isEmpty ? nil : combined
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .text(let t):
+            try container.encode(t)
+        case .parts(let p):
+            try container.encode(p)
+        }
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let text = try? container.decode(String.self) {
+            self = .text(text)
+            return
+        }
+        let parts = try container.decode([Part].self)
+        self = .parts(parts)
+    }
+}
+
 /// A single message in the `messages` array sent to the API.
 struct APIMessage: Codable {
     let role: String
-    let content: String?
+    let content: APIContent?
     let toolCallId: String?
     let toolCalls: [ToolCall]?
 
@@ -15,7 +99,20 @@ struct APIMessage: Codable {
         case toolCalls = "tool_calls"
     }
 
+    /// Plain-text convenience initializer — covers every pre-vision call site
+    /// (system prompts, tool results, synthesis prompts) unchanged, since a
+    /// String argument is automatically wrapped as `.text`.
     init(role: String, content: String? = nil, toolCallId: String? = nil, toolCalls: [ToolCall]? = nil) {
+        self.role = role
+        self.content = content.map { APIContent.text($0) }
+        self.toolCallId = toolCallId
+        self.toolCalls = toolCalls
+    }
+
+    /// Used when a message may need multipart content (text + one or more
+    /// images), and when passing through an already-decoded APIContent
+    /// (e.g. echoing an assistant's own tool-call message back into history).
+    init(role: String, content: APIContent?, toolCallId: String? = nil, toolCalls: [ToolCall]? = nil) {
         self.role = role
         self.content = content
         self.toolCallId = toolCallId
@@ -230,7 +327,7 @@ final class ChatAPIService {
         let combinedSystemContent = personalityContent + "\n\n" + temporalContent
         let systemMessage = APIMessage(role: "system", content: combinedSystemContent)
 
-        let userMessages  = messages.map { APIMessage(role: $0.role.rawValue, content: $0.content) }
+        let userMessages  = messages.map { APIMessage(role: $0.role.rawValue, content: apiContent(for: $0)) }
         let apiMessages   = [systemMessage] + userMessages
 
         let toolsToSend: [ToolDefinition]? = settings.hasTavilyKey ? [ToolDefinition.webSearch] : nil
@@ -423,7 +520,7 @@ final class ChatAPIService {
                 throw APIError.emptyResponse
             }
 
-            if let text = nextMessage.content, !text.isEmpty {
+            if let text = nextMessage.content?.plainText, !text.isEmpty {
                 guard !looksLikeUnsupportedToolCallArtifact(text) else {
                     throw APIError.unsupportedToolFormat
                 }
@@ -444,6 +541,9 @@ final class ChatAPIService {
                     .map { "Search \($0.offset + 1) results:\n\($0.element)" }
                     .joined(separator: "\n\n")
 
+                // NOTE: intentionally text-only — does not re-attach any image from
+                // the original user message. Acceptable because this path only runs
+                // when a provider ignores tool_choice: "none" on the final round.
                 let synthesisPrompt = """
                 Answer the user's question below using ONLY the search findings provided. \
                 Do not attempt to search again — just write your best answer now, in plain text, \
@@ -504,7 +604,7 @@ final class ChatAPIService {
                     throw APIError.decodingFailed(underlying: "\(decodingError) | Raw body: \(raw.prefix(300))")
                 }
 
-                guard let synthesisText = synthesisCompletion.choices.first?.message.content, !synthesisText.isEmpty else {
+                guard let synthesisText = synthesisCompletion.choices.first?.message.content?.plainText, !synthesisText.isEmpty else {
                     throw APIError.emptyResponse
                 }
                 guard !looksLikeUnsupportedToolCallArtifact(synthesisText) else {
@@ -518,7 +618,7 @@ final class ChatAPIService {
         }
 
         // No (further) tool call — return this message's text directly.
-        guard let text = pendingMessage.content, !text.isEmpty else {
+        guard let text = pendingMessage.content?.plainText, !text.isEmpty else {
             throw APIError.emptyResponse
         }
         guard !looksLikeUnsupportedToolCallArtifact(text) else {
@@ -579,7 +679,7 @@ final class ChatAPIService {
                     let combinedSystemContent = personalityContent + "\n\n" + temporalContent
                     let systemMessage = APIMessage(role: "system", content: combinedSystemContent)
 
-                    let userMessages  = messages.map { APIMessage(role: $0.role.rawValue, content: $0.content) }
+                    let userMessages  = messages.map { APIMessage(role: $0.role.rawValue, content: apiContent(for: $0)) }
                     let apiMessages   = [systemMessage] + userMessages
 
                     // This method never declares tools — see the doc comment above.
@@ -667,6 +767,50 @@ final class ChatAPIService {
     }
 
     // MARK: - Private Helpers
+
+    /// Builds the OpenAI-compatible `content` value for a single ChatMessage,
+    /// embedding any image attachments as base64 data URIs via
+    /// ImageAttachmentManager. Messages without attachments encode as a plain
+    /// string — identical to pre-vision behavior — so providers/models that
+    /// never see an image are completely unaffected.
+    private func apiContent(for message: ChatMessage) -> APIContent {
+        // Build the combined plain-text portion first: the user's typed text,
+        // plus the extracted text of any file attachments, each wrapped with
+        // a clear delimiter so the model can tell where the attachment starts
+        // and ends and what it's called.
+        var textSegments: [String] = []
+        if !message.content.isEmpty {
+            textSegments.append(message.content)
+        }
+        for fileAttachment in message.fileAttachments {
+            if let extractedText = FileAttachmentManager.loadText(fileAttachment) {
+                textSegments.append("--- Attached file: \(fileAttachment.displayName) ---\n\(extractedText)\n--- End of \(fileAttachment.displayName) ---")
+            }
+        }
+        let combinedText = textSegments.joined(separator: "\n\n")
+
+        guard !message.imageAttachments.isEmpty else {
+            return .text(combinedText)
+        }
+
+        var parts: [APIContent.Part] = []
+        if !combinedText.isEmpty {
+            parts.append(.text(combinedText))
+        }
+        for attachment in message.imageAttachments {
+            if let dataURI = ImageAttachmentManager.dataURI(for: attachment) {
+                parts.append(.imageURL(dataURI))
+            }
+        }
+        // Fallback: if every attachment failed to load (e.g. file deleted
+        // between save and send) and there's no text either, send a plain
+        // text part rather than an empty parts array, which some providers
+        // may reject outright.
+        if parts.isEmpty {
+            parts.append(.text(combinedText))
+        }
+        return .parts(parts)
+    }
 
     /// Detects the non-standard, provider-specific "fake tool call" text some
     /// models (observed with DeepSeek) emit as plain content instead of a

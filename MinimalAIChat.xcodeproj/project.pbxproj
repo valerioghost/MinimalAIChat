@@ -7,8 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		2C4E5F6A7B8C9D0E1F3A1B4D /* FileAttachmentManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A1B4D2C4E5F6A7B8C9D0E1F /* FileAttachmentManager.swift */; };
+		2C4E5F6A7B8C9D0E1F3A1B5E /* SystemDocumentPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A1B5E2C4E5F6A7B8C9D0E1F /* SystemDocumentPicker.swift */; };
 		493ED043147BB4E1AA5EA9F1 /* ProfileImageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9CF97E71F27DBE64250F07E /* ProfileImageManager.swift */; };
 		4F948ADF1BBB6BE770860639 /* SystemImagePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA8E3C33851B909A4398FBF5 /* SystemImagePicker.swift */; };
+		5A1B2C3D4E5F6A7B8C9D0E1F /* ImageAttachmentManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B7C8D9E0F1A2B3C4D5E6F7A /* ImageAttachmentManager.swift */; };
 		80AD6F85CDBEDF1E15CD59F8 /* TavilySearchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BE2C0C2B31DEE29C865EB3E /* TavilySearchService.swift */; };
 		9961CFE7E8B8D2BFA10E28F1 /* ToolCalling.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88F2F84462BADBC1E5C254D1 /* ToolCalling.swift */; };
 		B1000001 /* MinimalAIChatApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000001 /* MinimalAIChatApp.swift */; };
@@ -26,10 +29,23 @@
 		B100000D /* ChatAPIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000D /* ChatAPIService.swift */; };
 		B100000E /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000E /* OnboardingView.swift */; };
 		B1000010 /* MasterSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000010 /* MasterSettingsView.swift */; };
+		B928CCF330485D6F00DF6A28 /* PersonalizationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1B2C3D4E5F6A7B8C9D0E1A /* PersonalizationSettingsView.swift */; };
+		B96D79DB3048226E00A1A0B2 /* AppearanceMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A2B4C6D0E1F3A5B7C9D1E3F /* AppearanceMode.swift */; };
+		B96D79DC3048228000A1A0B2 /* Color+Hex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A0B2C4D8E9F1A3B5C7D9E1F /* Color+Hex.swift */; };
+		B96D79DD3048228A00A1A0B2 /* PresetColor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A1B2C3D4E5F6A7B8C9D0E1F /* PresetColor.swift */; };
+		FA1B2C3D4E5F6A7B8C9D0E1A /* APIProviderPreset.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB1B2C3D4E5F6A7B8C9D0E1A /* APIProviderPreset.swift */; };
+		FC1B2C3D4E5F6A7B8C9D0E1A /* ProviderPresetPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD1B2C3D4E5F6A7B8C9D0E1A /* ProviderPresetPicker.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		1A1B2C3D4E5F6A7B8C9D0E1A /* PersonalizationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonalizationSettingsView.swift; sourceTree = "<group>"; };
+		3A1B4D2C4E5F6A7B8C9D0E1F /* FileAttachmentManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FileAttachmentManager.swift; sourceTree = "<group>"; };
+		3A1B5E2C4E5F6A7B8C9D0E1F /* SystemDocumentPicker.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SystemDocumentPicker.swift; sourceTree = "<group>"; };
+		4A1B2C3D4E5F6A7B8C9D0E1F /* PresetColor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresetColor.swift; sourceTree = "<group>"; };
+		6A0B2C4D8E9F1A3B5C7D9E1F /* Color+Hex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Color+Hex.swift"; sourceTree = "<group>"; };
+		6B7C8D9E0F1A2B3C4D5E6F7A /* ImageAttachmentManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ImageAttachmentManager.swift; sourceTree = "<group>"; };
 		88F2F84462BADBC1E5C254D1 /* ToolCalling.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ToolCalling.swift; sourceTree = "<group>"; };
+		8A2B4C6D0E1F3A5B7C9D1E3F /* AppearanceMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearanceMode.swift; sourceTree = "<group>"; };
 		8BE2C0C2B31DEE29C865EB3E /* TavilySearchService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TavilySearchService.swift; sourceTree = "<group>"; };
 		A1000001 /* MinimalAIChatApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MinimalAIChatApp.swift; sourceTree = "<group>"; };
 		A1000002 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -49,6 +65,8 @@
 		B9CF97E71F27DBE64250F07E /* ProfileImageManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProfileImageManager.swift; sourceTree = "<group>"; };
 		EA8E3C33851B909A4398FBF5 /* SystemImagePicker.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SystemImagePicker.swift; sourceTree = "<group>"; };
 		F59DA19A0CD95D93964B929B /* MinimalAIChat.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MinimalAIChat.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		FB1B2C3D4E5F6A7B8C9D0E1A /* APIProviderPreset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIProviderPreset.swift; sourceTree = "<group>"; };
+		FD1B2C3D4E5F6A7B8C9D0E1A /* ProviderPresetPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderPresetPicker.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -75,13 +93,22 @@
 				A1000008 /* SideMenuView.swift */,
 				A100000A /* KeychainHelper.swift */,
 				A100000B /* SettingsViewModel.swift */,
+				8A2B4C6D0E1F3A5B7C9D1E3F /* AppearanceMode.swift */,
+				6A0B2C4D8E9F1A3B5C7D9E1F /* Color+Hex.swift */,
+				4A1B2C3D4E5F6A7B8C9D0E1F /* PresetColor.swift */,
+				FB1B2C3D4E5F6A7B8C9D0E1A /* APIProviderPreset.swift */,
 				A100000C /* SettingsView.swift */,
+				1A1B2C3D4E5F6A7B8C9D0E1A /* PersonalizationSettingsView.swift */,
 				A100000D /* ChatAPIService.swift */,
 				A100000E /* OnboardingView.swift */,
 				A1000010 /* MasterSettingsView.swift */,
 				A1000009 /* Assets.xcassets */,
 				B9CF97E71F27DBE64250F07E /* ProfileImageManager.swift */,
+				6B7C8D9E0F1A2B3C4D5E6F7A /* ImageAttachmentManager.swift */,
+				3A1B4D2C4E5F6A7B8C9D0E1F /* FileAttachmentManager.swift */,
 				EA8E3C33851B909A4398FBF5 /* SystemImagePicker.swift */,
+				FD1B2C3D4E5F6A7B8C9D0E1A /* ProviderPresetPicker.swift */,
+				3A1B5E2C4E5F6A7B8C9D0E1F /* SystemDocumentPicker.swift */,
 				8BE2C0C2B31DEE29C865EB3E /* TavilySearchService.swift */,
 				88F2F84462BADBC1E5C254D1 /* ToolCalling.swift */,
 			);
@@ -177,18 +204,27 @@
 				B1000002 /* ContentView.swift in Sources */,
 				B1000003 /* ChatModels.swift in Sources */,
 				B1000004 /* ChatViewModel.swift in Sources */,
+				B96D79DB3048226E00A1A0B2 /* AppearanceMode.swift in Sources */,
+				B96D79DC3048228000A1A0B2 /* Color+Hex.swift in Sources */,
 				B1000005 /* ChatView.swift in Sources */,
 				B1000006 /* MessageBubbleView.swift in Sources */,
+				B96D79DD3048228A00A1A0B2 /* PresetColor.swift in Sources */,
 				B1000007 /* InputBarView.swift in Sources */,
 				B1000008 /* SideMenuView.swift in Sources */,
 				B100000A /* KeychainHelper.swift in Sources */,
 				B100000B /* SettingsViewModel.swift in Sources */,
+				FA1B2C3D4E5F6A7B8C9D0E1A /* APIProviderPreset.swift in Sources */,
 				B100000C /* SettingsView.swift in Sources */,
 				B100000D /* ChatAPIService.swift in Sources */,
 				B100000E /* OnboardingView.swift in Sources */,
 				B1000010 /* MasterSettingsView.swift in Sources */,
 				493ED043147BB4E1AA5EA9F1 /* ProfileImageManager.swift in Sources */,
+				5A1B2C3D4E5F6A7B8C9D0E1F /* ImageAttachmentManager.swift in Sources */,
+				2C4E5F6A7B8C9D0E1F3A1B4D /* FileAttachmentManager.swift in Sources */,
 				4F948ADF1BBB6BE770860639 /* SystemImagePicker.swift in Sources */,
+				B928CCF330485D6F00DF6A28 /* PersonalizationSettingsView.swift in Sources */,
+				FC1B2C3D4E5F6A7B8C9D0E1A /* ProviderPresetPicker.swift in Sources */,
+				2C4E5F6A7B8C9D0E1F3A1B5E /* SystemDocumentPicker.swift in Sources */,
 				80AD6F85CDBEDF1E15CD59F8 /* TavilySearchService.swift in Sources */,
 				9961CFE7E8B8D2BFA10E28F1 /* ToolCalling.swift in Sources */,
 			);
@@ -332,7 +368,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
@@ -343,7 +379,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.5;
+				MARKETING_VERSION = 3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.valerioghost.MinimalAIChat;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -362,7 +398,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
@@ -373,7 +409,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.5;
+				MARKETING_VERSION = 3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.valerioghost.MinimalAIChat;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";

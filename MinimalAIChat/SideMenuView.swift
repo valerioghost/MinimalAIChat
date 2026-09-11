@@ -47,8 +47,8 @@ struct SideMenuView: View {
                                 session: session,
                                 isActive: session.id == viewModel.activeSessionID
                             ) {
-                                viewModel.selectSession(session)
-                                withAnimation(.easeInOut(duration: 0.3)) {
+                                withAnimation(.spring(response: 0.35, dampingFraction: 0.86)) {
+                                    viewModel.selectSession(session)
                                     isMenuOpen = false
                                 }
                             }
@@ -68,6 +68,7 @@ struct SideMenuView: View {
         .sheet(isPresented: $isShowingMasterSettings) {
             MasterSettingsView()
                 .environmentObject(settings)
+                .preferredColorScheme(settings.resolvedColorScheme)
         }
         // ── Clear Chat confirmation alert ─────────────────────────────────
         .alert(isPresented: $showClearAlert) {
@@ -75,7 +76,7 @@ struct SideMenuView: View {
                 title: Text("Delete Chat"),
                 message: Text("This chat will be permanently removed from your history."),
                 primaryButton: .destructive(Text("Delete")) {
-                    withAnimation(.easeInOut(duration: 0.3)) {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.86)) {
                         isMenuOpen = false
                     }
                     // Small delay so the menu slides away before the list updates
@@ -95,7 +96,7 @@ struct SideMenuView: View {
             ZStack {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(LinearGradient(
-                        colors: [Color.accentColor, Color.accentColor.opacity(0.6)],
+                        colors: [settings.accentColor, settings.accentColor.opacity(0.6)],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     ))
@@ -122,8 +123,8 @@ struct SideMenuView: View {
 
     private var newChatButton: some View {
         Button {
-            viewModel.startNewChat()
-            withAnimation(.easeInOut(duration: 0.3)) {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.86)) {
+                viewModel.startNewChat()
                 isMenuOpen = false
             }
         } label: {
@@ -135,10 +136,10 @@ struct SideMenuView: View {
                     .font(.system(size: 15, weight: .medium))
                 Spacer()
             }
-            .foregroundColor(.accentColor)
+            .foregroundColor(settings.accentColor)
             .padding(.vertical, 12)
             .padding(.horizontal, 16)
-            .background(Color.accentColor.opacity(0.1))
+            .background(settings.accentColor.opacity(0.1))
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             .padding(.horizontal, 12)
         }
@@ -163,6 +164,7 @@ struct SideMenuView: View {
             .background(Color(.systemRed).opacity(0.08))
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             .padding(.horizontal, 12)
+            .padding(.top, 6)
         }
         .buttonStyle(.plain)
     }
@@ -175,7 +177,7 @@ struct SideMenuView: View {
                 // Avatar: profile image, or first character of the user's name, or a person icon
                 ZStack {
                     Circle()
-                        .fill(Color.accentColor.opacity(0.15))
+                        .fill(settings.accentColor.opacity(0.15))
                         .frame(width: 48, height: 48)
                     
                     if let img = settings.profileImage {
@@ -187,11 +189,11 @@ struct SideMenuView: View {
                     } else if userName.isEmpty {
                         Image(systemName: "person")
                             .font(.system(size: 21, weight: .medium))
-                            .foregroundColor(.accentColor)
+                            .foregroundColor(settings.accentColor)
                     } else {
                         Text(String(userName.prefix(1)).uppercased())
                             .font(.system(size: 21, weight: .bold))
-                            .foregroundColor(.accentColor)
+                            .foregroundColor(settings.accentColor)
                     }
                 }
 
@@ -223,6 +225,8 @@ struct SideMenuView: View {
 
 struct SessionRowView: View {
 
+    @EnvironmentObject private var settings: SettingsViewModel
+
     let session: ChatSession
     let isActive: Bool
     let onTap: () -> Void
@@ -232,13 +236,13 @@ struct SessionRowView: View {
             HStack(spacing: 12) {
                 Image(systemName: "bubble.left")
                     .font(.system(size: 14))
-                    .foregroundColor(isActive ? .accentColor : .secondary)
+                    .foregroundColor(isActive ? settings.accentColor : .secondary)
                     .frame(width: 20)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(session.title)
                         .font(.system(size: 14, weight: isActive ? .semibold : .regular))
-                        .foregroundColor(isActive ? .accentColor : .primary)
+                        .foregroundColor(isActive ? settings.accentColor : .primary)
                         .lineLimit(1)
 
                     Text(relativeDate(session.lastUpdated))
@@ -252,7 +256,7 @@ struct SessionRowView: View {
             .padding(.horizontal, 12)
             .background(
                 isActive
-                    ? Color.accentColor.opacity(0.12)
+                    ? settings.accentColor.opacity(0.12)
                     : Color.clear
             )
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))

@@ -86,6 +86,7 @@ private struct RootView: View {
                     .ignoresSafeArea()
             }
         }
+        .preferredColorScheme(settings.resolvedColorScheme)
         .onAppear {
             // Wire the real settings into the view model now that both
             // objects are fully injected into the environment.
@@ -100,6 +101,11 @@ private struct RootView: View {
         .onChange(of: scenePhase) { newPhase in
             if newPhase == .background {
                 viewModel.cancelInFlightTask()
+            } else if newPhase == .active {
+                // Re-read the device's true appearance — catches the case
+                // where the person changed it in system Settings while this
+                // app was backgrounded.
+                settings.refreshSystemColorScheme()
             }
         }
     }

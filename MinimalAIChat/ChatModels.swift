@@ -21,18 +21,24 @@ struct ChatMessage: Identifiable, Codable {
     let timestamp: Date
     var isError: Bool
     var isComplete: Bool
+    var imageAttachments: [ImageAttachment]
+    var fileAttachments: [FileAttachment]
+    var isWelcomeMessage: Bool
 
     enum CodingKeys: String, CodingKey {
-        case id, role, content, timestamp, isError, isComplete
+        case id, role, content, timestamp, isError, isComplete, imageAttachments, fileAttachments, isWelcomeMessage
     }
 
-    init(id: UUID = UUID(), role: MessageRole, content: String, timestamp: Date = Date(), isError: Bool = false, isComplete: Bool = true) {
+    init(id: UUID = UUID(), role: MessageRole, content: String, timestamp: Date = Date(), isError: Bool = false, isComplete: Bool = true, imageAttachments: [ImageAttachment] = [], fileAttachments: [FileAttachment] = [], isWelcomeMessage: Bool = false) {
         self.id = id
         self.role = role
         self.content = content
         self.timestamp = timestamp
         self.isError = isError
         self.isComplete = isComplete
+        self.imageAttachments = imageAttachments
+        self.fileAttachments = fileAttachments
+        self.isWelcomeMessage = isWelcomeMessage
     }
 
     init(from decoder: Decoder) throws {
@@ -44,6 +50,14 @@ struct ChatMessage: Identifiable, Codable {
         isError = try container.decodeIfPresent(Bool.self, forKey: .isError) ?? false
         // Default true: old persisted messages were always fully completed replies
         isComplete = try container.decodeIfPresent(Bool.self, forKey: .isComplete) ?? true
+        // Default []: old persisted messages predate the vision feature and had no attachments
+        imageAttachments = try container.decodeIfPresent([ImageAttachment].self, forKey: .imageAttachments) ?? []
+        // Default []: old persisted messages predate the file-attachments feature
+        fileAttachments = try container.decodeIfPresent([FileAttachment].self, forKey: .fileAttachments) ?? []
+        // Default false: old persisted messages predate this flag; treating them
+        // as non-welcome messages is safe since only genuinely new welcome
+        // messages need the copy button hidden going forward.
+        isWelcomeMessage = try container.decodeIfPresent(Bool.self, forKey: .isWelcomeMessage) ?? false
     }
 
     func encode(to encoder: Encoder) throws {
@@ -54,6 +68,9 @@ struct ChatMessage: Identifiable, Codable {
         try container.encode(timestamp, forKey: .timestamp)
         try container.encode(isError, forKey: .isError)
         try container.encode(isComplete, forKey: .isComplete)
+        try container.encode(imageAttachments, forKey: .imageAttachments)
+        try container.encode(fileAttachments, forKey: .fileAttachments)
+        try container.encode(isWelcomeMessage, forKey: .isWelcomeMessage)
     }
 }
 

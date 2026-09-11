@@ -120,10 +120,20 @@ struct ChatView: View {
                 .onChange(of: viewModel.isTyping) { _ in
                     scrollToBottom(proxy: proxy, animated: true)
                 }
-                // Session switched — instant jump, no animation
+                // Session switched — instant jump, no animation. Deferred by
+                // one run-loop tick so SwiftUI has finished laying out the
+                // NEW session's message list (which can be a very different
+                // size than the previous one) before we scroll — otherwise
+                // scrollTo computes its target against the stale, previous
+                // session's geometry and visibly "bounces" once the real
+                // layout commits a frame later. Same pattern already used
+                // elsewhere in this file (content-growth and keyboard
+                // scrolls).
                 .onChange(of: viewModel.activeSessionID) { _ in
                     lastSeenNonEmptyMessageID = nil
-                    proxy.scrollTo(bottomAnchor, anchor: .bottom)
+                    DispatchQueue.main.async {
+                        proxy.scrollTo(bottomAnchor, anchor: .bottom)
+                    }
                 }
                 // Keyboard appeared — defer one frame so the layout has
                 // already inset the scroll view before we scroll

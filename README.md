@@ -17,10 +17,15 @@ A native iOS 15 AI chat client designed to bring modern artificial intelligence 
 MinimalAIChat is a native iOS 15 application built to replace clunky web interfaces for AI services like Gemini or ChatGPT, ensuring older devices can still leverage modern LLMs. 
 
 * 🚀 **Ultra-lightweight:** Built with native SwiftUI and minimal dependencies for excellent performance on older devices.
+* 📷 **Vision & Multimodal Input:** Send photos directly from your camera or library to vision-capable models. Includes fullscreen image viewing and combined web search capabilities.
+* 📄 **Document Parsing & PDF Preview:** Attach PDFs, TXT, Markdown, or code files with automatic text extraction (up to 50k characters). Includes a full visual layout preview for PDF attachments.
+* ⚡ **Provider Quick-Select:** One-tap setup presets for OpenAI, Google Gemini, and OpenRouter, plus support for any custom OpenAI-compatible endpoint.
+* 🎨 **Deep Visual Personalization:** Dedicated Appearance settings featuring Light/Dark/System themes and custom accent color selection applied across the entire app.
+* 🔎 **Web Search (optional):** Let the AI search the web for current information — news, recent events, anything past its training cutoff — using [Tavily](https://tavily.com). Works with any provider. The AI decides on its own when a search is actually needed.
+* 📋 **Quick Copy & Polish:** Instant response copying, smooth spring animations, and refined UI layout fixes.
 * 💾 **Local History:** All your conversations are saved locally and securely on your device.
 * 🧹 **Smart Auto-Cleanup:** Empty or accidental sessions are automatically cleared on the next app launch, keeping your sidebar clutter-free.
 * 🔒 **Privacy First:** API calls travel directly from your phone to the provider. No intermediate servers, proxies, or data logging.
-* 🔎 **Web Search (optional):** Let the AI search the web for current information — news, recent events, anything past its training cutoff — using [Tavily](https://tavily.com). Works with any provider. The AI decides on its own when a search is actually needed.
 
 ## Requirements
 

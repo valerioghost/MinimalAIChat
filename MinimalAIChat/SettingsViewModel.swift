@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import SwiftUI
 import UIKit
 
 // MARK: - AppSettings Keys
@@ -14,6 +15,8 @@ enum SettingsKey {
     static let maxTokens   = "settings.maxTokens"
     static let historyCharacterBudget = "settings.historyCharacterBudget"
     static let tavilyApiKey = "settings.tavilyApiKey"
+    static let appearanceMode = "settings.appearanceMode"
+    static let accentColorHex = "settings.accentColorHex"
 }
 
 // MARK: - Default Values
@@ -23,6 +26,7 @@ enum SettingsDefault {
     static let modelName = "gpt-4o-mini"
     static let temperature: Double = 1.0
     static let historyCharacterBudget: Int = 8000
+    static let appearanceMode: AppearanceMode = .system
 }
 
 // MARK: - SettingsViewModel
@@ -81,6 +85,71 @@ final class SettingsViewModel: ObservableObject {
         didSet { UserDefaults.standard.set(historyCharacterBudget, forKey: SettingsKey.historyCharacterBudget) }
     }
 
+    /// Manual light/dark/system override. Defaults to `.system`, meaning
+    /// this feature changes nothing for users who never open the new
+    /// Appearance settings — identical to the app's prior behavior.
+    @Published var appearanceMode: AppearanceMode {
+        didSet { UserDefaults.standard.set(appearanceMode.rawValue, forKey: SettingsKey.appearanceMode) }
+    }
+
+    /// User-chosen accent color, stored as a "#RRGGBB" hex string. `nil`
+    /// means "no custom color chosen" — in that case `accentColor` below
+    /// falls back to the app's existing Assets-catalog AccentColor,
+    /// completely unchanged from before this feature existed.
+    @Published var accentColorHex: String? {
+        didSet {
+            if let accentColorHex {
+                UserDefaults.standard.set(accentColorHex, forKey: SettingsKey.accentColorHex)
+            } else {
+                UserDefaults.standard.removeObject(forKey: SettingsKey.accentColorHex)
+            }
+        }
+    }
+
+    /// Resolved accent color for use throughout the app. Prefer this over a
+    /// literal `Color.accentColor` reference wherever the person's custom
+    /// color choice should be respected — a later stage replaces existing
+    /// `Color.accentColor` call sites with this property.
+    var accentColor: Color {
+        if let accentColorHex, let color = Color(hex: accentColorHex) {
+            return color
+        }
+        return Color.accentColor
+    }
+
+    /// The device's true current light/dark setting, read via UIScreen
+    /// rather than SwiftUI's @Environment(\.colorScheme) — the latter gets
+    /// self-contaminated by our own .preferredColorScheme() calls, since
+    /// that modifier works by overriding the app window's
+    /// overrideUserInterfaceStyle, and @Environment(\.colorScheme) reads
+    /// that same overridden value back instead of the true device setting.
+    /// UIScreen's trait collection is not part of that override cascade, so
+    /// it always reflects the real device appearance. Refreshed at launch
+    /// and whenever the app returns to foreground (see RootView).
+    @Published var systemColorScheme: ColorScheme = SettingsViewModel.readSystemColorScheme()
+
+    /// The color scheme actually applied to the app: the person's explicit
+    /// Light/Dark choice if set, otherwise the true device setting. Single
+    /// source of truth used by every .preferredColorScheme() call site in
+    /// the app, so they all stay in sync without each needing their own
+    /// environment-reading logic.
+    var resolvedColorScheme: ColorScheme {
+        appearanceMode.colorScheme ?? systemColorScheme
+    }
+
+    /// Re-reads the device's true appearance from UIScreen. Call this at
+    /// points where the system setting may have changed while the app
+    /// wasn't actively rendering — app launch and foreground return are
+    /// the two that matter in practice, since a live mid-session system
+    /// appearance toggle while this app is frontmost is a rare edge case.
+    func refreshSystemColorScheme() {
+        systemColorScheme = Self.readSystemColorScheme()
+    }
+
+    private static func readSystemColorScheme() -> ColorScheme {
+        UIScreen.main.traitCollection.userInterfaceStyle == .dark ? .dark : .light
+    }
+
     func updateProfileImage(_ image: UIImage) {
         self.profileImage = image
         ProfileImageManager.save(image)
@@ -110,6 +179,12 @@ final class SettingsViewModel: ObservableObject {
         self.temperature = defaults.object(forKey: SettingsKey.temperature) as? Double ?? SettingsDefault.temperature
         self.maxTokens   = defaults.object(forKey: SettingsKey.maxTokens) as? Int
         self.historyCharacterBudget = defaults.object(forKey: SettingsKey.historyCharacterBudget) as? Int ?? SettingsDefault.historyCharacterBudget
+        if let rawMode = defaults.string(forKey: SettingsKey.appearanceMode), let mode = AppearanceMode(rawValue: rawMode) {
+            self.appearanceMode = mode
+        } else {
+            self.appearanceMode = SettingsDefault.appearanceMode
+        }
+        self.accentColorHex = defaults.string(forKey: SettingsKey.accentColorHex)
     }
 
     // MARK: - Actions

@@ -65,12 +65,12 @@ struct OnboardingView: View {
             ZStack {
                 Circle()
                     .fill(LinearGradient(
-                        colors: [Color.accentColor, Color.accentColor.opacity(0.5)],
+                        colors: [settings.accentColor, settings.accentColor.opacity(0.5)],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     ))
                     .frame(width: 90, height: 90)
-                    .shadow(color: Color.accentColor.opacity(0.35), radius: 20, x: 0, y: 8)
+                    .shadow(color: settings.accentColor.opacity(0.35), radius: 20, x: 0, y: 8)
 
                 Image(systemName: "sparkles")
                     .font(.system(size: 38, weight: .semibold))
@@ -116,6 +116,8 @@ struct OnboardingView: View {
             Label("Base URL (Endpoint)", systemImage: "link")
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(.secondary)
+
+            ProviderPresetPicker(baseURL: $baseURL)
 
             TextField("e.g. https://api.openai.com/v1", text: $baseURL)
                 .font(.system(size: 16))
@@ -233,8 +235,8 @@ struct OnboardingView: View {
             .padding(.vertical, 16)
             .background(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(Color.accentColor)
-                    .shadow(color: Color.accentColor.opacity(0.4), radius: 10, x: 0, y: 5)
+                    .fill(settings.accentColor)
+                    .shadow(color: settings.accentColor.opacity(0.4), radius: 10, x: 0, y: 5)
             )
         }
         .buttonStyle(.plain)

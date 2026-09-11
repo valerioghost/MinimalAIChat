@@ -5,6 +5,7 @@ import SwiftUI
 /// Master settings sheet presenting navigation options for Profile and API settings.
 struct MasterSettingsView: View {
 
+    @EnvironmentObject private var settings: SettingsViewModel
     @Environment(\.presentationMode) private var presentationMode
 
     var body: some View {
@@ -15,7 +16,7 @@ struct MasterSettingsView: View {
                         HStack(spacing: 12) {
                             Image(systemName: "person.crop.circle")
                                 .font(.system(size: 20))
-                                .foregroundColor(.accentColor)
+                                .foregroundColor(settings.accentColor)
                             Text("Edit Profile Name")
                                 .font(.system(size: 16))
                         }
@@ -26,8 +27,19 @@ struct MasterSettingsView: View {
                         HStack(spacing: 12) {
                             Image(systemName: "brain.head.profile")
                                 .font(.system(size: 20))
-                                .foregroundColor(.accentColor)
+                                .foregroundColor(settings.accentColor)
                             Text("AI Personality")
+                                .font(.system(size: 16))
+                        }
+                        .padding(.vertical, 4)
+                    }
+
+                    NavigationLink(destination: PersonalizationSettingsView()) {
+                        HStack(spacing: 12) {
+                            Image(systemName: "paintbrush.fill")
+                                .font(.system(size: 20))
+                                .foregroundColor(settings.accentColor)
+                            Text("Appearance")
                                 .font(.system(size: 16))
                         }
                         .padding(.vertical, 4)
@@ -37,7 +49,7 @@ struct MasterSettingsView: View {
                         HStack(spacing: 12) {
                             Image(systemName: "network")
                                 .font(.system(size: 20))
-                                .foregroundColor(.accentColor)
+                                .foregroundColor(settings.accentColor)
                             Text("API & Connection Settings")
                                 .font(.system(size: 16))
                         }
@@ -48,7 +60,7 @@ struct MasterSettingsView: View {
                         HStack(spacing: 12) {
                             Image(systemName: "info.circle")
                                 .font(.system(size: 20))
-                                .foregroundColor(.accentColor)
+                                .foregroundColor(settings.accentColor)
                             Text("About")
                                 .font(.system(size: 16))
                         }
@@ -92,7 +104,7 @@ struct ProfileSettingsView: View {
                     } label: {
                         ZStack {
                             Circle()
-                                .fill(Color.accentColor.opacity(0.15))
+                                .fill(settings.accentColor.opacity(0.15))
                                 .frame(width: 80, height: 80)
                             
                             if let img = settings.profileImage {
@@ -104,15 +116,15 @@ struct ProfileSettingsView: View {
                             } else if userName.isEmpty {
                                 Image(systemName: "person")
                                     .font(.system(size: 36, weight: .medium))
-                                    .foregroundColor(.accentColor)
+                                    .foregroundColor(settings.accentColor)
                             } else {
                                 Text(String(userName.prefix(1)).uppercased())
                                     .font(.system(size: 36, weight: .bold))
-                                    .foregroundColor(.accentColor)
+                                    .foregroundColor(settings.accentColor)
                             }
                             
                             Circle()
-                                .stroke(Color.accentColor.opacity(0.3), lineWidth: 1)
+                                .stroke(settings.accentColor.opacity(0.3), lineWidth: 1)
                                 .frame(width: 80, height: 80)
                         }
                     }
@@ -214,6 +226,8 @@ struct MasterSettingsView_Previews: PreviewProvider {
 
 /// Simple about screen with links and version info.
 struct AboutView: View {
+    @EnvironmentObject private var settings: SettingsViewModel
+
     var body: some View {
         Form {
             Section {
@@ -240,7 +254,7 @@ struct AboutView: View {
                 }) {
                     HStack {
                         Image(systemName: "chevron.left.forwardslash.chevron.right")
-                            .foregroundColor(.accentColor)
+                            .foregroundColor(settings.accentColor)
                             .frame(width: 24)
                         Text("GitHub Repository")
                             .foregroundColor(.primary)
@@ -254,7 +268,7 @@ struct AboutView: View {
                 }) {
                     HStack {
                         Image(systemName: "bubble.left.and.bubble.right")
-                            .foregroundColor(.accentColor)
+                            .foregroundColor(settings.accentColor)
                             .frame(width: 24)
                         Text("Discord Server")
                             .foregroundColor(.primary)

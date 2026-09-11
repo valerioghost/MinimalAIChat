@@ -19,7 +19,7 @@ struct ContentView: View {
                     .toolbar {
                         ToolbarItem(placement: .navigationBarLeading) {
                             Button {
-                                withAnimation(.easeInOut(duration: 0.3)) {
+                                withAnimation(.spring(response: 0.35, dampingFraction: 0.86)) {
                                     isMenuOpen.toggle()
                                 }
                             } label: {
@@ -47,13 +47,12 @@ struct ContentView: View {
             if isMenuOpen {
                 Color.black.opacity(0.4)
                     .ignoresSafeArea()
-                    .offset(x: 280)
                     .onTapGesture {
-                        withAnimation(.easeInOut(duration: 0.3)) {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.86)) {
                             isMenuOpen = false
                         }
                     }
-                    .transition(.opacity)
+                    .transition(.opacity.animation(.spring(response: 0.35, dampingFraction: 0.86)))
             }
 
             // ── Side Menu ─────────────────────────────────────────────────
@@ -62,7 +61,6 @@ struct ContentView: View {
                 .offset(x: isMenuOpen ? 0 : -280)
                 .shadow(color: .black.opacity(0.2), radius: 12, x: 4, y: 0)
         }
-        .animation(.easeInOut(duration: 0.3), value: isMenuOpen)
         // ── Onboarding (first launch only) ────────────────────────────────
         .fullScreenCover(isPresented: Binding(
             get: { !hasCompletedSetup },

@@ -60,6 +60,9 @@ struct SettingsView: View {
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(.secondary)
 
+                ProviderPresetPicker(baseURL: $settings.baseURL)
+                    .padding(.bottom, 2)
+
                 TextField("https://api.openai.com/v1", text: $settings.baseURL)
                     .keyboardType(.URL)
                     .autocapitalization(.none)
@@ -172,7 +175,7 @@ struct SettingsView: View {
                 HStack(spacing: 12) {
                     Image(systemName: "slider.horizontal.3")
                         .font(.system(size: 18))
-                        .foregroundColor(.accentColor)
+                        .foregroundColor(settings.accentColor)
                         .frame(width: 24)
                     Text("Advanced Options")
                         .font(.system(size: 16))
@@ -239,7 +242,7 @@ struct SettingsView: View {
         .padding(.vertical, 10)
         .background(
             Capsule()
-                .fill(Color.accentColor)
+                .fill(settings.accentColor)
                 .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
         )
         .padding(.top, 12)

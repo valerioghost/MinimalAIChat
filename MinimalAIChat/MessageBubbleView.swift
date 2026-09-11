@@ -1,10 +1,26 @@
 import SwiftUI
+import UIKit
+import PDFKit
 
 /// A single chat bubble row — adapts layout and styling for user vs assistant.
 struct MessageBubbleView: View {
 
+    @EnvironmentObject private var settings: SettingsViewModel
+
     let message: ChatMessage
     var isSearching: Bool = false
+
+    /// Controls the fullscreen image viewer, shown when the user taps an
+    /// image attachment in the bubble.
+    @State private var isShowingFullScreenImage = false
+
+    /// Briefly true after tapping the copy button, to swap the icon to a
+    /// checkmark as tap feedback before reverting.
+    @State private var showCopiedFeedback = false
+
+    /// Controls the file text preview sheet, shown when the user taps a
+    /// file attachment chip in the bubble.
+    @State private var isShowingFilePreview = false
 
     private var isUser: Bool { message.role == .user }
 
@@ -22,16 +38,56 @@ struct MessageBubbleView: View {
         HStack(alignment: .bottom, spacing: 0) {
             Spacer(minLength: 56)
             VStack(alignment: .trailing, spacing: 4) {
-                Text(message.content)
-                    .font(.system(size: 16))
-                    .lineSpacing(3)
-                    .multilineTextAlignment(.trailing)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .background(Color.accentColor)
+                if let attachment = message.imageAttachments.first,
+                   let uiImage = ImageAttachmentManager.load(attachment) {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(maxWidth: 220, maxHeight: 220)
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .clipped()
+                        .onTapGesture {
+                            isShowingFullScreenImage = true
+                        }
+                        .fullScreenCover(isPresented: $isShowingFullScreenImage) {
+                            FullScreenImageView(image: uiImage)
+                        }
+                }
+
+                if let fileAttachment = message.fileAttachments.first {
+                    HStack(spacing: 6) {
+                        Image(systemName: "doc.text.fill")
+                            .font(.system(size: 15))
+                        Text(fileAttachment.displayName)
+                            .font(.system(size: 13))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
                     .foregroundColor(.white)
-                    .clipShape(BubbleShape(isUser: true))
-                    .shadow(color: .black.opacity(0.06), radius: 4, x: 0, y: 2)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(settings.accentColor.opacity(0.85))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .onTapGesture {
+                        isShowingFilePreview = true
+                    }
+                    .sheet(isPresented: $isShowingFilePreview) {
+                        FileTextPreviewView(attachment: fileAttachment)
+                    }
+                }
+
+                if !message.content.isEmpty {
+                    Text(message.content)
+                        .font(.system(size: 16))
+                        .lineSpacing(3)
+                        .multilineTextAlignment(.leading)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .background(settings.accentColor)
+                        .foregroundColor(.white)
+                        .clipShape(BubbleShape(isUser: true))
+                        .shadow(color: .black.opacity(0.06), radius: 4, x: 0, y: 2)
+                }
 
                 Text(formattedTime(message.timestamp))
                     .font(.system(size: 11))
@@ -71,16 +127,42 @@ struct MessageBubbleView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
-                Text(formattedTime(message.timestamp))
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
-                    .opacity(0.6)
+                HStack(spacing: 8) {
+                    Text(formattedTime(message.timestamp))
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                        .opacity(0.6)
+
+                    if !message.content.isEmpty && !message.isWelcomeMessage {
+                        Button(action: copyToClipboard) {
+                            Image(systemName: showCopiedFeedback ? "checkmark" : "doc.on.doc")
+                                .font(.system(size: 11))
+                                .foregroundColor(.secondary)
+                                .opacity(0.6)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
             }
 
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 6)
+    }
+
+    /// Copies this message's raw text to the system clipboard and briefly
+    /// swaps the button icon to a checkmark as tap feedback.
+    private func copyToClipboard() {
+        UIPasteboard.general.string = message.content
+        withAnimation {
+            showCopiedFeedback = true
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            withAnimation {
+                showCopiedFeedback = false
+            }
+        }
     }
 
     /// A minimal, deliberately narrow block model. Only headings and unordered
@@ -224,7 +306,7 @@ struct MessageBubbleView: View {
         ZStack {
             Circle()
                 .fill(LinearGradient(
-                    colors: [Color.accentColor, Color.accentColor.opacity(0.55)],
+                    colors: [settings.accentColor, settings.accentColor.opacity(0.55)],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 ))
@@ -341,6 +423,106 @@ struct WebSearchIndicatorView: View {
         }
         .frame(height: 20)
         .onAppear { isPulsing = true }
+    }
+}
+
+// MARK: - Full Screen Image Viewer
+
+/// Presented full-screen when the user taps an image attachment in a chat
+/// bubble. Always shows the complete, uncropped image (scaledToFit) over a
+/// black background — separate from the bubble's cropped thumbnail, which
+/// is unaffected by this view. Dismissible by tapping the image or the
+/// close button.
+struct FullScreenImageView: View {
+    let image: UIImage
+    @Environment(\.presentationMode) private var presentationMode
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            Color.black.ignoresSafeArea()
+
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFit()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .onTapGesture {
+                    presentationMode.wrappedValue.dismiss()
+                }
+
+            Button(action: { presentationMode.wrappedValue.dismiss() }) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 28))
+                    .foregroundColor(.white.opacity(0.85))
+                    .background(Circle().fill(Color.black.opacity(0.3)))
+            }
+            .padding(.top, 16)
+            .padding(.leading, 20)
+        }
+    }
+}
+
+// MARK: - PDF Document Viewer
+
+/// Wraps PDFKit's PDFView to render an actual PDF with its real formatting,
+/// layout, and embedded images — used instead of the plain-text preview
+/// whenever a PDF's original bytes were persisted (see
+/// FileAttachmentManager.pdfFileURL(for:)).
+struct PDFKitView: UIViewRepresentable {
+    let url: URL
+
+    func makeUIView(context: Context) -> PDFView {
+        let view = PDFView()
+        view.autoScales = true
+        view.displayMode = .singlePageContinuous
+        view.displayDirection = .vertical
+        view.document = PDFDocument(url: url)
+        return view
+    }
+
+    func updateUIView(_ uiView: PDFView, context: Context) {}
+}
+
+// MARK: - File Text Preview
+
+/// Shown when the user taps a file attachment chip in a chat bubble.
+/// Displays the extracted text that was actually sent to the model — not
+/// the original file, since only extracted text is persisted (see
+/// FileAttachmentManager). Monospaced font suits both prose and source code
+/// reasonably well without needing per-file-type formatting.
+struct FileTextPreviewView: View {
+    let attachment: FileAttachment
+    @Environment(\.presentationMode) private var presentationMode
+
+    var body: some View {
+        NavigationView {
+            Group {
+                // Prefer the real, formatted PDF when its original bytes
+                // were persisted (Stage A of this feature). Falls back to
+                // the plain extracted text for TXT/Markdown/code files, and
+                // for PDFs saved before this feature existed (no original
+                // bytes stored for those — text-only is the best we can do).
+                if let pdfURL = FileAttachmentManager.pdfFileURL(for: attachment) {
+                    PDFKitView(url: pdfURL)
+                } else {
+                    ScrollView {
+                        Text(FileAttachmentManager.loadText(attachment) ?? "This file's content is no longer available.")
+                            .font(.system(size: 14, design: .monospaced))
+                            .lineSpacing(4)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding()
+                    }
+                }
+            }
+            .navigationTitle(attachment.displayName)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        presentationMode.wrappedValue.dismiss()
+                    }
+                }
+            }
+        }
     }
 }
 

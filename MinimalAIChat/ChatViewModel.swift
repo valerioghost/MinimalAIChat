@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import UIKit
 
 // MARK: - ChatViewModel
 
@@ -61,11 +62,18 @@ final class ChatViewModel: ObservableObject {
             }
         }
 
+        // Run once per launch, after loadedSessions reflects its final state
+        // for this session (including the "fresh welcome session" inserted
+        // just below is NOT yet part of it, which is correct — that session
+        // never has attachments).
+        Self.purgeOrphanedAttachmentFiles(keeping: loadedSessions)
+
         // Always start with a fresh welcoming session on launch
         let fresh = ChatSession(title: "New Chat", messages: [
             ChatMessage(
                 role: .assistant,
-                content: "Hello! I'm your AI assistant. How can I help you today? 👋"
+                content: "Hello! I'm your AI assistant. How can I help you today? 👋",
+                isWelcomeMessage: true
             )
         ])
         loadedSessions.insert(fresh, at: 0)
@@ -107,12 +115,26 @@ final class ChatViewModel: ObservableObject {
 
     // MARK: - Actions
 
-    func sendMessage() {
+    func sendMessage(image: UIImage? = nil, file: FileAttachment? = nil) {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty, !isTyping else { return }
+        guard !text.isEmpty || image != nil || file != nil, !isTyping else { return }
 
         inputText = ""
-        appendMessage(ChatMessage(role: .user, content: text))
+
+        var imageAttachmentsToSend: [ImageAttachment] = []
+        if let image, let attachment = ImageAttachmentManager.save(image) {
+            imageAttachmentsToSend = [attachment]
+        }
+
+        // Unlike images, the file was already validated and saved to disk by
+        // InputBarView (so a "too large" / "unreadable" error can be shown to
+        // the user before send, rather than silently dropping the attachment).
+        var fileAttachmentsToSend: [FileAttachment] = []
+        if let file {
+            fileAttachmentsToSend = [file]
+        }
+
+        appendMessage(ChatMessage(role: .user, content: text, imageAttachments: imageAttachmentsToSend, fileAttachments: fileAttachmentsToSend))
 
         // Cancel any stale in-flight request before starting a new one
         currentTask?.cancel()
@@ -148,7 +170,8 @@ final class ChatViewModel: ObservableObject {
         let session = ChatSession(title: "New Chat", messages: [
             ChatMessage(
                 role: .assistant,
-                content: "Hello! I'm your AI assistant. How can I help you today? 👋"
+                content: "Hello! I'm your AI assistant. How can I help you today? 👋",
+                isWelcomeMessage: true
             )
         ])
         sessions.insert(session, at: 0)
@@ -168,6 +191,20 @@ final class ChatViewModel: ObservableObject {
     func deleteCurrentSession() {
         currentTask?.cancel()
         isTyping = false
+
+        // Delete any image and file attachments belonging to the session
+        // being removed, so they don't linger on disk forever with nothing
+        // referencing them.
+        if let sessionBeingDeleted = sessions.first(where: { $0.id == activeSessionID }) {
+            for message in sessionBeingDeleted.messages {
+                for attachment in message.imageAttachments {
+                    ImageAttachmentManager.delete(attachment)
+                }
+                for attachment in message.fileAttachments {
+                    FileAttachmentManager.delete(attachment)
+                }
+            }
+        }
 
         // Remove the active session
         sessions.removeAll { $0.id == activeSessionID }
@@ -392,7 +429,14 @@ final class ChatViewModel: ObservableObject {
         var currentLength = 0
         
         for message in messages.reversed() {
-            let length = message.content.count
+            // Include file attachment text in the length calculation — unlike
+            // images (fixed-size binary payloads, not conversational text),
+            // an attached file's extracted text is added directly into the
+            // message's text content when sent, so it must count toward the
+            // same character budget or a large file could silently blow past
+            // the model's real context window without trimming ever noticing.
+            let fileCharacterCount = message.fileAttachments.reduce(0) { $0 + $1.characterCount }
+            let length = message.content.count + fileCharacterCount
             
             // Stop if adding this message exceeds budget AND we already have at least one message
             if currentLength + length > historyCharacterBudget && !result.isEmpty {
@@ -472,6 +516,46 @@ final class ChatViewModel: ObservableObject {
             var updated = session
             updated.messages.removeAll { $0.role == .assistant && $0.content.isEmpty }
             return updated
+        }
+    }
+
+    /// Deletes any image files on disk under ChatAttachments/ that are no
+    /// longer referenced by any message in `sessions`. Handles orphans left
+    /// behind by session/message deletions that happened before this cleanup
+    /// existed, or by a hard app termination between saving a file and
+    /// persisting the ChatMessage that references it.
+    private static func purgeOrphanedAttachmentFiles(keeping sessions: [ChatSession]) {
+        let referencedImageFilenames = Set(
+            sessions.flatMap { $0.messages.flatMap { $0.imageAttachments.map(\.filename) } }
+        )
+        let storedImageFilenames = ImageAttachmentManager.listStoredFilenames()
+        for filename in storedImageFilenames where !referencedImageFilenames.contains(filename) {
+            ImageAttachmentManager.delete(filename: filename)
+        }
+
+        // File attachments reference TWO possible on-disk filenames each:
+        // the extracted-text cache (storedFilename, always present) and the
+        // original PDF bytes (originalPDFFilename, only for PDFs saved
+        // after this field was introduced). Both must be in the referenced
+        // set, or a valid original PDF would be wrongly deleted as an
+        // "orphan" on next launch, since only its text cache would be
+        // recognized as referenced.
+        let referencedFileFilenames = Set(
+            sessions.flatMap { session in
+                session.messages.flatMap { message in
+                    message.fileAttachments.flatMap { attachment -> [String] in
+                        var names = [attachment.storedFilename]
+                        if let originalPDFFilename = attachment.originalPDFFilename {
+                            names.append(originalPDFFilename)
+                        }
+                        return names
+                    }
+                }
+            }
+        )
+        let storedFileFilenames = FileAttachmentManager.listStoredFilenames()
+        for filename in storedFileFilenames where !referencedFileFilenames.contains(filename) {
+            FileAttachmentManager.delete(filename: filename)
         }
     }
 }
